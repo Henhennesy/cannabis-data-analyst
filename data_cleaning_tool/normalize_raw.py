@@ -64,10 +64,31 @@ def sniff_delimiter(path: Path) -> str:
     return "\t" if first.count("\t") > first.count(",") else ","
 
 
+# BDSA names the first column after the export's grain: "Year" for annual
+# pulls, "Month" for monthly ones. Everything else about the layout is
+# identical. clean_bdsa.py only knows "Year", so monthly exports are
+# renamed on the way through -- the real grain is recoverable from the
+# period values themselves, which is what the loader keys on.
+PERIOD_COLUMN_NAMES = {"year", "month", "quarter"}
+
+
 def looks_like_header(row: list[str]) -> bool:
     """True if the row is a header rather than data."""
+    if not row:
+        return False
     lowered = {c.strip().lower() for c in row}
-    return "year" in lowered and "state" in lowered
+    return bool(PERIOD_COLUMN_NAMES & lowered) and "state" in lowered
+
+
+def canonicalize_header(header: list[str]) -> tuple[list[str], str]:
+    """Rename the grain-specific period column to 'Year'. Returns the header
+    and the grain the source file declared."""
+    if not header:
+        return header, "unknown"
+    grain = header[0].strip().lower()
+    if grain in PERIOD_COLUMN_NAMES:
+        return ["Year"] + list(header[1:]), grain
+    return header, "unknown"
 
 
 def read_xlsx(path: Path) -> tuple[list[str], list[list[str]], bool]:
@@ -129,6 +150,8 @@ def main() -> int:
             header, body, had_header = read_text(src)
             origin = f"text/{'tab' if sniff_delimiter(src) == chr(9) else 'comma'}"
 
+        header, declared_grain = canonicalize_header(header)
+
         widths = {len(r) for r in body}
         if len(widths) > 1:
             print(f"  !! {src.name}: ragged rows, column counts {sorted(widths)}", file=sys.stderr)
@@ -140,12 +163,18 @@ def main() -> int:
             w.writerow(header)
             w.writerows(body)
 
-        years = sorted({r[0] for r in body if r})
+        periods = sorted({r[0] for r in body if r})
+        grain_note = ""
+        if declared_grain != "unknown" and declared_grain != "year":
+            grain_note = f"  <-- {declared_grain.upper()}-GRAIN EXPORT"
+        elif len(periods) > 1:
+            grain_note = "  <-- multiple periods in one file"
         print(
             f"  {src.name}\n"
             f"      origin={origin}  header={'present' if had_header else 'SYNTHESIZED'}  "
             f"cols={len(header)}  rows={len(body):,}\n"
-            f"      Year values: {years[:4]}{' ...' if len(years) > 4 else ''}\n"
+            f"      declared grain={declared_grain}{grain_note}\n"
+            f"      {len(periods)} distinct period(s): {periods[:4]}{' ...' if len(periods) > 4 else ''}\n"
             f"      -> {dest.name}"
         )
 
