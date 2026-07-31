@@ -1,0 +1,30 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Local caches / logs produced at runtime
+*.sqlite
+*.sqlite3
+backend/cache/
+backend/logs/
+
+# reports/ IS tracked on purpose: the schema report is a milestone deliverable
+# and diffing it against next month's data load is how we spot schema drift.
+
+# OS
+Thumbs.db
+.DS_Store
