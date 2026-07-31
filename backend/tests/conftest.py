@@ -21,6 +21,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from backend.app import cache  # noqa: E402
 from backend.app.config import get_settings  # noqa: E402
+from backend.app.dataset import reset_fingerprint_cache  # noqa: E402
 from backend.app.db import close_pool  # noqa: E402
 
 
@@ -39,7 +40,20 @@ def require_database():
 
 @pytest.fixture(autouse=True)
 def clean_cache():
-    """Tests must exercise real queries, not each other's cached results."""
+    """Tests must exercise real queries, not each other's cached results.
+
+    The fingerprint memo is left intact on purpose: it is a per-process
+    optimisation, not test state, and clearing it would add a redundant
+    round-trip to every single test.
+    """
     cache.clear()
     yield
     cache.clear()
+
+
+@pytest.fixture
+def fresh_fingerprint():
+    """For tests that need the fingerprint recomputed from the database."""
+    reset_fingerprint_cache()
+    yield
+    reset_fingerprint_cache()
