@@ -31,3 +31,9 @@ Thumbs.db
 
 # Introspection run logs (duplicate of schema_report.md)
 reports/*.log
+
+# BDSA data files: large, and the raw exports are licensed vendor data.
+# The cleaning/loading CODE is tracked; the data is not.
+data_cleaning_tool/raw_exports/
+data_cleaning_tool/raw_normalized/
+data_cleaning_tool/clean/
