@@ -1,6 +1,21 @@
 # Coverage anomalies in `public.bdsa_sales`
 
-Generated 2026-07-31, against the database **before** the Maine reload.
+Generated 2026-07-31, against the database **before** the reload.
+
+> **RESOLVED 2026-07-31.** Maine, Arkansas and South Dakota were all reloaded
+> from corrected exports. All 37 states now carry both years; no state is
+> missing a year. Minnesota was investigated and needed no fix — it is real
+> growth. Post-load figures are in [baseline_metrics.md](baseline_metrics.md).
+>
+> The South Dakota exports turned out to be **month-grain** (12 months for
+> 2025, 7 for 2026), which is why its annual figures looked wrong. They were
+> aggregated to annual before loading so the table stays uniform; the monthly
+> detail is preserved in `data_cleaning_tool/clean/bdsa_clean.parquet`.
+>
+> **The "Consequence for the agent" section at the bottom still stands.** The
+> 2026 window is still partial, still unknown, and still varies by state. SD's
+> monthly file showed its own 2026 window runs January–July; no other state
+> discloses its window anywhere in the data.
 
 ## Method
 
