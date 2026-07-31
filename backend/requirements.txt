@@ -1,0 +1,24 @@
+# Every dependency here is justified. Anything not listed is not needed.
+
+# Postgres driver. v3 specifically: server-side parameter binding, the
+# ClientCursor used to render auditable SQL for the inspector, and typed
+# exceptions (QueryCanceled) that let a timeout be reported honestly rather
+# than mistaken for an empty result.
+psycopg[binary,pool]>=3.2
+
+# Tool input models. Validation happens BEFORE any SQL is built, so an
+# unknown dimension or an injected identifier is rejected at the boundary.
+pydantic>=2.7
+
+# Tests. They run against the live database -- no fabricated fixtures.
+pytest>=8.0
+
+# --- Added in later milestones, listed here so the intent is visible ---
+# fastapi + uvicorn   : Milestone 5, chat endpoint and SSE streaming
+# anthropic           : Milestone 4, tool-use loop
+#
+# Deliberately NOT used:
+#   redis          -- SQLite on disk covers a single-user cache
+#   sqlalchemy     -- every query is hand-written SQL that must be auditable
+#   pandas         -- rows go straight to JSON; no dataframe layer needed
+#   python-dotenv  -- six variables, read by a dozen lines in config.py
