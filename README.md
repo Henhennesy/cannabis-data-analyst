@@ -95,6 +95,50 @@ CREATE TABLE nope (i int);
 SELECT count(*) FROM bdsa_sales;
 ```
 
+### Verify it is actually read-only
+
+```bash
+python scripts/verify_readonly.py
+```
+
+Checks both layers independently. `default_transaction_read_only` blocking a
+write is *not* sufficient — anything that can turn that flag off could then
+write. The script disables it on a fresh autocommit connection and requires the
+writes to still fail with `permission denied`, i.e. blocked by privilege.
+
+---
+
+## Query performance and the 8s statement timeout
+
+Warm timings against the live database (7.45M-row fact table):
+
+| query | fact table | materialized view |
+| --- | --- | --- |
+| rows + sales by year | **9.19 s — exceeds timeout** | 0.12 s |
+| state × year coverage | 1.79 s | 0.26 s |
+| distinct `brand` | 1.05 s | 0.16 s |
+| distinct `category_l2` | 1.25 s | 0.06 s |
+| fast-acting penetration, 2025 | 0.29 s | 0.06 s |
+| top 20 brands in edibles, 2025 | — | 0.12 s |
+
+**Route through the materialized views wherever the required columns exist.**
+They are 10–70x faster, and they already exclude suppressed rows, which matches
+the default the tools want anyway. Only fall back to `bdsa_sales` for columns
+the views do not carry (`category_l4`, `category_l5`, `product`, `strain`,
+`flavor`, `pack_size`, `infusion_type`, `items_per_pack`, potency, price).
+
+The one query that blows the 8s budget — summing `total_retail_sales` across
+all 7.45M rows grouped by year — has an exact view equivalent at 0.12 s.
+
+### Cold starts
+
+Neon scales the compute to zero when idle. The **first** query after a suspend
+pays a cold-start penalty and can exceed 8s regardless of how cheap it is: an
+unqualified `count(*)` took 8s+ cold and 0.62s warm. The connection pool must
+issue a cheap warm-up query on checkout and retry once on `QueryCanceled`,
+otherwise the first question of every session fails intermittently. Disabling
+scale-to-zero on the Neon endpoint is the alternative, at higher cost.
+
 ---
 
 ## Data loading
