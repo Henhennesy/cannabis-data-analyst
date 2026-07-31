@@ -28,3 +28,6 @@ backend/logs/
 # OS
 Thumbs.db
 .DS_Store
+
+# Introspection run logs (duplicate of schema_report.md)
+reports/*.log
