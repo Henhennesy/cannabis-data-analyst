@@ -1,31 +1,24 @@
-# Every dependency here is justified. Anything not listed is not needed.
-# Versions are the ones this project is known to work on (2026-08-01).
+# The full local development set: everything the app needs at runtime, plus
+# the test runner and the data pipeline.
+#
+#   pip install -r backend/requirements.txt      <- local venv, unchanged
+#
+# The container installs requirements-app.txt instead, which is the runtime
+# subset. Keeping the runtime list in one file and including it here means the
+# two cannot drift: there is only one place a serving dependency is declared.
 
-# Postgres driver. v3 specifically: server-side parameter binding, the
-# ClientCursor used to render auditable SQL for the inspector, and typed
-# exceptions (QueryCanceled) that let a timeout be reported honestly rather
-# than mistaken for an empty result. [pool] gives the connection pool.
-psycopg[binary,pool]>=3.3,<4
+-r requirements-app.txt
 
-# Tool input models. Validation happens BEFORE any SQL is built, so an
-# unknown dimension or an injected identifier is rejected at the boundary.
-pydantic>=2.13,<3
-
-# The agent loop. Official SDK -- the tool-use surface, streaming, and the
-# typed refusal/stop_reason handling all come from here.
-anthropic>=0.120,<1
-
-# Chat endpoint and SSE streaming.
-fastapi>=0.141,<1
-uvicorn[standard]>=0.52,<1
-
-# HTTP client. Required by fastapi.testclient; also used by the probe scripts.
-httpx>=0.28,<1
-
-# Tests. They run against the live database -- no fabricated fixtures.
+# --- Tests -----------------------------------------------------------------
+# They run against the live database -- no fabricated fixtures.
 pytest>=9,<10
 
-# --- Data pipeline only (data_cleaning_tool/), not the running app ---
+# fastapi.testclient requires httpx. It also arrives transitively via anthropic,
+# but the tests depend on it directly, so it is declared directly. Also used by
+# the probe scripts in scripts/.
+httpx>=0.28,<1
+
+# --- Data pipeline only (data_cleaning_tool/), not the running app ---------
 # DuckDB does the cleaning and the annual aggregation; openpyxl reads the
 # .xlsx exports BDSA sometimes sends instead of CSV.
 duckdb>=1.5,<2

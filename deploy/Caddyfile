@@ -1,0 +1,55 @@
+{
+	# TLS terminates at Cloudflare's edge; cloudflared reaches this container
+	# over the internal compose network. Leaving auto_https on would have Caddy
+	# try to provision a certificate for a hostname it does not control, and
+	# fail on every start.
+	auto_https off
+
+	# Nothing in this deployment reconfigures Caddy at runtime, so the admin
+	# API is surface with no purpose.
+	admin off
+}
+
+:80 {
+	log {
+		output stdout
+		format console
+	}
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+
+		# The app loads nothing from anywhere but itself. `data:` and `blob:`
+		# on img-src are required and not incidental: the PNG export serialises
+		# the chart's SVG into a data: URI, draws it to a canvas, and hands back
+		# a blob. Dropping either one silently breaks chart export.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+	}
+
+	# --- API ---------------------------------------------------------------
+	# Deliberately OUTSIDE any `encode`. /api/chat is a text/event-stream that
+	# has to reach the browser token by token, and a compressor holds bytes
+	# back until it has enough of them to be worth compressing -- precisely the
+	# wrong behaviour for a stream. The remaining API responses are small JSON
+	# where compression would buy nothing anyway.
+	handle /api/* {
+		reverse_proxy backend:8000 {
+			# Flush every write straight through rather than buffering.
+			flush_interval -1
+		}
+	}
+
+	# --- UI ----------------------------------------------------------------
+	handle {
+		encode zstd gzip
+		root * /srv
+		# Single-page app: an unknown path is a client route, not a 404. A
+		# genuinely missing asset still 404s, because try_files looks for the
+		# real file first and only then falls back.
+		try_files {path} /index.html
+		file_server
+	}
+}

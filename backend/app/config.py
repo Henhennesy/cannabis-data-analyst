@@ -44,6 +44,12 @@ class Settings:
         self.effort = os.environ.get("ANTHROPIC_EFFORT", "high")
         self.pool_min_size = int(os.environ.get("DB_POOL_MIN_SIZE", "1"))
         self.pool_max_size = int(os.environ.get("DB_POOL_MAX_SIZE", "5"))
+        # Saved analyses live outside the code tree in the container, on a
+        # mounted volume, so rebuilding the image cannot take them with it.
+        # Locally the default keeps them next to the repo where they have been.
+        self.analyses_db_path = Path(
+            os.environ.get("ANALYSES_DB_PATH", str(REPO_ROOT / "backend" / "data" / "analyses.sqlite"))
+        )
 
     def require_db(self) -> str:
         if not self.readonly_url:

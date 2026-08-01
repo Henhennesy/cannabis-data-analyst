@@ -1,0 +1,26 @@
+# Runtime dependencies of the SERVING application, and nothing else.
+#
+# This is the file the container installs. It is deliberately smaller than
+# requirements.txt: the cleaning pipeline (duckdb, openpyxl) and the test
+# runner have no business inside a public-facing image. duckdb alone is a
+# ~50MB native library that the running app never imports.
+#
+# Versions are the ones this project is known to work on (2026-08-01).
+
+# Postgres driver. v3 specifically: server-side parameter binding, the
+# ClientCursor used to render auditable SQL for the inspector, and typed
+# exceptions (QueryCanceled) that let a timeout be reported honestly rather
+# than mistaken for an empty result. [pool] gives the connection pool.
+psycopg[binary,pool]>=3.3,<4
+
+# Tool input models. Validation happens BEFORE any SQL is built, so an
+# unknown dimension or an injected identifier is rejected at the boundary.
+pydantic>=2.13,<3
+
+# The agent loop. Official SDK -- the tool-use surface, streaming, and the
+# typed refusal/stop_reason handling all come from here.
+anthropic>=0.120,<1
+
+# Chat endpoint and SSE streaming.
+fastapi>=0.141,<1
+uvicorn[standard]>=0.52,<1

@@ -13,6 +13,7 @@ import importlib
 import pytest
 
 from backend.app import analyses
+from backend.app.config import get_settings
 from backend.app.tools import GetMarketSizeInput, get_market_size
 
 pytestmark = pytest.mark.db
@@ -22,9 +23,16 @@ EDIBLES = {"category_l1": "Ingestibles", "category_l2": "Edibles"}
 
 @pytest.fixture(autouse=True)
 def isolated_store(tmp_path, monkeypatch):
-    """Never touch the real analyses database from a test."""
+    """Never touch the real analyses database from a test.
+
+    The path comes from Settings, which is lru_cached, so setting the
+    environment variable here would be too late -- the cached instance is
+    patched directly instead.
+    """
     analyses.close()
-    monkeypatch.setattr(analyses, "DB_PATH", tmp_path / "analyses.sqlite")
+    monkeypatch.setattr(
+        get_settings(), "analyses_db_path", tmp_path / "analyses.sqlite"
+    )
     yield
     analyses.close()
 

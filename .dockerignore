@@ -1,0 +1,44 @@
+# The build context is the repo root, so this file is what keeps the vendor
+# data, the credentials, and a 300MB node_modules out of the daemon.
+
+# Secrets. The container gets its environment from `env_file:` at RUN time;
+# baking .env into an IMAGE would put the Neon password and the Anthropic key
+# into a layer, where `docker history` can read them back out.
+.env
+.env.*
+!.env.example
+
+# BDSA data: large, and licensed vendor data that has no business in an image.
+data_cleaning_tool/
+
+# Local toolchains and caches
+.venv/
+venv/
+node_modules/
+frontend/node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.vite/
+
+# Build output -- the image builds its own from source.
+frontend/dist/
+dist/
+
+# Saved analyses. Mounted at run time; a copy inside the image would be a
+# stale snapshot shadowed by the mount.
+backend/data/
+
+# Not needed to serve a request
+.git/
+.github/
+.claude/
+backend/tests/
+scripts/
+reports/
+# Leading slash = repo root only. Written this way so it cannot be misread as
+# excluding backend/app/prompts/system.md, which the agent reads on every turn
+# and without which the container starts and then fails on first question.
+/*.cmd
+/*.md

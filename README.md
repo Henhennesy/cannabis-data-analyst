@@ -82,7 +82,7 @@ postgresql://bdsa_readonly:PASSWORD@<same-host>/<same-db>?sslmode=require&channe
 Put it in `.env` as `NEON_READONLY_URL`. Keep the owner string in
 `NEON_INTROSPECT_URL` for schema introspection and data loads only.
 
-### Verify it is actually read-only
+### Verify it is actually read-only, by hand
 
 ```sql
 -- Connected as bdsa_readonly, all of these must FAIL:
@@ -95,7 +95,7 @@ CREATE TABLE nope (i int);
 SELECT count(*) FROM bdsa_sales;
 ```
 
-### Verify it is actually read-only
+### Verify it is actually read-only, in CI
 
 ```bash
 python scripts/verify_readonly.py
@@ -171,6 +171,132 @@ rows and will otherwise serve stale numbers.
 
 ---
 
+## Deployment
+
+The whole stack is three containers: the API, Caddy serving the built UI, and
+the Cloudflare Tunnel that publishes it. It is reachable at
+`analyst.hennesystrategy.com`, behind Google SSO.
+
+```bash
+docker compose up -d --build
+```
+
+### The shape of it
+
+```
+browser ──TLS──► Cloudflare edge ──► Access policy ──► Tunnel
+                                        │                │
+                                   allow: one email      │  outbound only
+                                        │                ▼
+                                        └──────► cloudflared ──► web (Caddy :80)
+                                                                  │        │
+                                                        /api/* ───┘    static
+                                                                  ▼
+                                                           backend :8000 ──► Neon
+```
+
+Nothing listens on a public interface. The tunnel is an **outbound** connection
+from this machine, so there is no forwarded port, no inbound firewall rule, and
+no address to scan. `web` is published on `127.0.0.1:8080` for local checks
+only — binding that to `0.0.0.0` would put an unauthenticated copy on the LAN,
+and the loopback prefix is the entire difference.
+
+### How hidden it is
+
+Four things are true, and one is not.
+
+- Nothing links to it, so nothing crawls it.
+- The DNS record points at `<uuid>.cfargotunnel.com`, never at this machine.
+- Cloudflare does not allow zone transfers, so subdomains cannot be enumerated.
+- **It stays out of Certificate Transparency logs — but only because the name is
+  one label deep.** Cloudflare's Universal SSL covers `hennesystrategy.com` and
+  `*.hennesystrategy.com` with a single wildcard certificate, so `analyst`
+  hides inside it and never appears in a public CT log. A deeper name such as
+  `analyst.tools.hennesystrategy.com` is *not* covered by that wildcard, would
+  be issued its own certificate, and would be published under its own name
+  within minutes. Scanners watch those logs specifically to find hosts like
+  this one. **Keep the hostname one label deep.**
+
+What is *not* true: it is not invisible. Someone guessing hostnames could learn
+that something responds. What they get is a Cloudflare login screen. The
+obscurity is a bonus; **Access is the control**, and it is the part to rely on.
+
+### Cloudflare setup
+
+One-time, in the Zero Trust dashboard.
+
+1. **Identity provider** — Settings → Authentication → Login methods → add
+   Google. It needs an OAuth client ID and secret from Google Cloud Console
+   (APIs & Services → Credentials → OAuth client ID → Web application), with
+   Cloudflare's callback URL as the authorised redirect URI. Cloudflare shows
+   you that URL on the same screen.
+
+   The built-in **one-time PIN** method needs none of this and emails a code
+   instead. Identical security posture for one user; less pleasant to use often.
+
+2. **Tunnel** — Networks → Tunnels → Create → Docker. Copy the token out of the
+   command it shows you into `TUNNEL_TOKEN` in `.env`. Add a public hostname:
+
+   | field | value |
+   | --- | --- |
+   | Subdomain | `analyst` |
+   | Domain | `hennesystrategy.com` |
+   | Service | `HTTP` → `web:80` |
+
+   `web:80` is the service name on the compose network, which is why
+   `cloudflared` runs in this stack rather than as a standalone service.
+
+3. **Access application** — Access → Applications → Add → Self-hosted, on
+   `analyst.hennesystrategy.com`. One policy: action **Allow**, include
+   **Emails** → your address. Session duration 24h so it is not asking hourly.
+
+   Passing Google only proves who someone is. The policy decides whether that
+   person is you — so the include rule must be the specific email, never
+   "any Google account".
+
+**`TUNNEL_TOKEN` is a credential.** Anyone holding it can register as your
+tunnel and receive traffic for the hostname. Access guards the front door; this
+token is the back door, and it is not behind Access.
+
+### Verifying a deployment
+
+In order, because each step only makes sense if the one before it worked.
+
+```bash
+docker compose config                      # compose file parses, vars resolve
+docker compose up -d --build
+docker compose ps                          # backend healthy before web starts
+curl -s localhost:8080/api/health          # the stack, without the tunnel
+curl -sI localhost:8080/                   # index.html, CSP header present
+docker compose logs -f cloudflared         # look for "Registered tunnel connection"
+```
+
+Then open `https://analyst.hennesystrategy.com` in a private window and confirm
+you are challenged for Google *before* seeing anything, and that answers still
+stream token by token rather than arriving in one block. Streaming is the thing
+most likely to break behind a proxy — see below.
+
+### Two deployment-specific hazards
+
+**Buffering kills the stream.** `/api/chat` is a `text/event-stream`. Caddy
+proxies it with `flush_interval -1`, and the API is deliberately outside the
+`encode` directive, because a compressor holds bytes back until it has enough
+of them to be worth compressing. If answers ever arrive all at once instead of
+token by token, this is the first place to look.
+
+**The CSP allows `data:` and `blob:` on `img-src`, and must.** The PNG export
+serialises the chart's SVG into a `data:` URI, draws it to a canvas, and returns
+a blob. Tightening either one breaks chart export silently — the button works,
+nothing downloads.
+
+### What this deliberately does not do
+
+No rate limiting and no spend cap. Once this is reachable from a phone, a
+runaway tool loop burns Anthropic credits with nobody watching a terminal.
+`MAX_TOOL_CALLS_PER_TURN` bounds a single turn; nothing bounds a day.
+
+---
+
 ## Backup, machine migration, and restore
 
 **The data is not on this machine.** It lives in Neon. Wiping the workstation
@@ -186,7 +312,13 @@ would be genuinely painful to lose.
 | `data_cleaning_tool/raw_normalized/`, `clean/` | gitignored | ~295 MB | no — regenerated by re-running the pipeline |
 | `.venv/` | gitignored | ~122 MB | **never** — absolute paths are baked into `pyvenv.cfg` and every console script; it will not work on another machine or another profile path |
 | `.env` | gitignored | tiny | see below |
+| `backend/data/analyses.sqlite` | gitignored | small | **yes** — saved analyses are the one piece of state that exists nowhere else |
 | The BDSA data itself | Neon (cloud) | — | already safe |
+
+Saved analyses are bind-mounted from `backend/data/`, not held in a Docker
+volume, precisely so backing them up is copying a file. SQLite runs in WAL
+mode, so **take `analyses.sqlite-wal` with it** or copy while the stack is
+down — the sidecar holds committed rows the main file does not yet contain.
 
 ### Do not back up `.env`
 
@@ -225,6 +357,18 @@ milestone, every decision, every reason recorded in a commit message), and
 
 ### Restoring on a fresh machine
 
+**The short path, if you only need it serving:** install Docker Desktop, clone
+the repo, fill in `.env`, and run `docker compose up -d --build`. Nothing else
+— no Python, no Node, no venv, no toolchain versions to match. That is the main
+thing containerising bought, and it is why this section is much shorter than it
+used to be.
+
+Reconnect the tunnel by pasting the existing `TUNNEL_TOKEN`; the hostname and
+Access policy live in Cloudflare and survive the wipe untouched.
+
+**The long path, for development** — needed only to run tests, the CLI, or the
+data pipeline, since none of those live in the image:
+
 1. Install **Python 3.12+**, **Node LTS**, and **git**.
 2. Get the code: `git clone <your private remote>`, or unzip the archive.
 3. Restore `raw_exports/` from the separate archive (only needed to re-run the
@@ -250,6 +394,21 @@ milestone, every decision, every reason recorded in a commit message), and
    assuming the code broke.
 
 7. `analyst.cmd` for the CLI, `serve.cmd` for the API.
+
+### Autostart on boot
+
+`restart: unless-stopped` brings the containers back whenever the Docker daemon
+starts, so the only thing needed is for the daemon itself to start at boot:
+Docker Desktop → Settings → General → **Start Docker Desktop when you sign in**.
+
+The catch on Windows is *sign in*, not *boot* — after a power cut the machine
+reaches the login screen and stops, and the analyst is down until someone logs
+in. If that matters, enable automatic sign-in for this account, and understand
+the trade: an unattended machine that unlocks itself. With this box in a place
+only you have access to, that is usually the right call for a server.
+
+`unless-stopped` also means a container you stop by hand stays stopped across
+reboots, which is the behaviour you want while debugging.
 
 ### Note on the profile path
 

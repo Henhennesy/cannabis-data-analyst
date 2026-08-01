@@ -18,15 +18,12 @@ import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
-from .config import REPO_ROOT
+from .config import get_settings
 from .dataset import data_fingerprint
 from .envelope import ToolEnvelope
 from .tools import registry
-
-DB_PATH = REPO_ROOT / "backend" / "data" / "analyses.sqlite"
 
 _lock = threading.Lock()
 _conn: sqlite3.Connection | None = None
@@ -38,8 +35,9 @@ _DIFFABLE = lambda name: name != "render_chart"  # noqa: E731
 def _connect() -> sqlite3.Connection:
     global _conn
     if _conn is None:
-        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        db_path = get_settings().analyses_db_path
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        _conn = sqlite3.connect(db_path, check_same_thread=False)
         _conn.row_factory = sqlite3.Row
         _conn.execute("PRAGMA journal_mode=WAL")
         _conn.execute(

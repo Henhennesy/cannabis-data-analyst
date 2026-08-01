@@ -1,0 +1,88 @@
+# The whole deployment: API, UI, and the tunnel that publishes it.
+#
+#   docker compose up -d --build     start (and rebuild after a code change)
+#   docker compose logs -f           watch
+#   docker compose down              stop
+#
+# Nothing here listens on a public interface. The only path in from the
+# internet is the Cloudflare Tunnel, which is an OUTBOUND connection from this
+# machine -- there is no port forwarded, no inbound firewall rule, and no
+# address for a scanner to find.
+
+services:
+  # --- API -----------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+    image: bdsa-analyst-backend
+    restart: unless-stopped
+    # Enumerated rather than `env_file: .env`, and that is the point. .env also
+    # holds NEON_INTROSPECT_URL -- the OWNER role, which can write. The serving
+    # container must never hold a credential it does not need: it executes
+    # model-generated SQL, and the read-only role is the last real backstop.
+    # Handing it the owner credential as well would quietly undo that.
+    # Values come from .env, which Compose reads for substitution automatically.
+    environment:
+      NEON_READONLY_URL: ${NEON_READONLY_URL:?NEON_READONLY_URL is not set - see .env.example}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is not set - see .env.example}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5}
+      ANTHROPIC_EFFORT: ${ANTHROPIC_EFFORT:-high}
+      STATEMENT_TIMEOUT_MS: ${STATEMENT_TIMEOUT_MS:-8000}
+      MAX_TOOL_CALLS_PER_TURN: ${MAX_TOOL_CALLS_PER_TURN:-10}
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
+      # Saved analyses live on the mounted volume, not inside the image, so a
+      # rebuild cannot take them with it.
+      ANALYSES_DB_PATH: /data/analyses.sqlite
+    volumes:
+      # A bind mount rather than a named volume, on purpose: the file stays
+      # visible in the repo directory, so backing it up is copying a file and
+      # not an excavation into Docker's storage. It is already gitignored.
+      - ./backend/data:/data
+    # No `ports:`. The API is reachable only from the compose network, which
+    # means only through Caddy, which means only through Access.
+    expose:
+      - "8000"
+    networks:
+      - analyst
+
+  # --- UI + reverse proxy --------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    image: bdsa-analyst-web
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      # Bound to loopback ONLY. This exists so the stack can be checked locally
+      # at http://127.0.0.1:8080 before the tunnel is attached, and so there is
+      # a way in if Cloudflare is having a bad day. Binding 0.0.0.0 here would
+      # publish an unauthenticated copy to the whole LAN -- the 127.0.0.1
+      # prefix is the entire security difference and must not be dropped.
+      - "127.0.0.1:8080:80"
+    networks:
+      - analyst
+
+  # --- Public entry point --------------------------------------------------
+  cloudflared:
+    # Unpinned deliberately. Cloudflare retires old tunnel clients on its own
+    # schedule, and a pinned tag eventually stops being able to connect at all.
+    # This is the one place where tracking latest is the stable choice.
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      - web
+    # The token encodes which tunnel this is and its credentials; the routing
+    # (analyst.hennesystrategy.com -> http://web:80) lives in the Cloudflare
+    # dashboard, so it can be changed without touching this file.
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN:?TUNNEL_TOKEN is not set - see the deployment section of the README}
+    networks:
+      - analyst
+
+networks:
+  analyst:
+    driver: bridge

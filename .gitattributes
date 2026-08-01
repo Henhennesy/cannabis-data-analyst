@@ -1,0 +1,19 @@
+# This repo is developed on Windows and deployed into Linux containers, so line
+# endings are not cosmetic for everything here.
+
+# Default: let git normalise text in the repo, check out native on the host.
+* text=auto
+
+# These are read by Linux tooling and must be LF regardless of host. Caddy
+# tolerates CRLF, but a stray \r in a config or a future entrypoint script
+# produces errors that read as "command not found" and waste an afternoon.
+Dockerfile        text eol=lf
+*.Dockerfile      text eol=lf
+Caddyfile         text eol=lf
+docker-compose.yml text eol=lf
+.dockerignore     text eol=lf
+*.sh              text eol=lf
+
+# Windows launchers, conversely, must keep CRLF -- cmd.exe is not reliable
+# reading a batch file with LF-only endings.
+*.cmd             text eol=crlf
