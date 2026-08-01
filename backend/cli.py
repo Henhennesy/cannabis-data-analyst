@@ -162,6 +162,18 @@ def main() -> int:
                  f"max_tool_calls={session.agent.settings.max_tool_calls_per_turn}"))
     print(c(DIM, "/sql /rows /coverage /usage /reset /quit\n"))
 
+    # Without this, a non-interactive launcher prints the banner, hits EOF on
+    # the first prompt, and exits silently -- which looks like the tool doing
+    # nothing rather than the tool having nowhere to read from.
+    if not args.ask and not sys.stdin.isatty():
+        print(c(YELLOW,
+                "No interactive terminal attached, so there is nowhere to type a\n"
+                "question. Either run this from a real terminal window, or ask a\n"
+                "single question directly:\n"), file=sys.stderr)
+        print(c(DIM, '  analyst.cmd --ask "How big was the edibles market in 2025?"'),
+              file=sys.stderr)
+        return 2
+
     try:
         if args.ask:
             session.ask(args.ask)
