@@ -1,0 +1,403 @@
+/* Layout. Milestone 5 is the conversation column plus the coverage banner;
+   the chart canvas and inspector panes land in Milestones 7 and 8, which is
+   why this is a grid rather than a single centred column. */
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* --- coverage banner: always on screen, per spec ------------------------- */
+
+.banner {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg-sunken);
+  font-size: var(--fs-sm);
+  flex-wrap: wrap;
+}
+
+.banner__label {
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--fs-xs);
+}
+
+.banner__value { color: var(--text); }
+
+.banner__partial {
+  color: var(--warn);
+  cursor: help;
+  border-bottom: 1px dotted var(--warn);
+}
+
+.banner__spacer { flex: 1; }
+
+.banner__error { color: var(--error); }
+
+/* --- conversation -------------------------------------------------------- */
+
+.conversation {
+  overflow-y: auto;
+  padding: var(--sp-5) var(--sp-4) 0;
+}
+
+.thread {
+  max-width: 78ch;
+  margin: 0 auto;
+  padding-bottom: var(--sp-6);
+}
+
+.turn { margin-bottom: var(--sp-6); }
+
+.turn__question {
+  font-size: var(--fs-md);
+  color: var(--text);
+  padding-bottom: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.turn__question::before {
+  content: "?";
+  color: var(--accent);
+  font-family: var(--font-mono);
+  margin-right: var(--sp-2);
+}
+
+/* --- rendered answer ----------------------------------------------------- */
+
+.answer { color: var(--text); }
+
+.answer > *:first-child { margin-top: 0; }
+.answer > *:last-child { margin-bottom: 0; }
+
+.answer p { margin: 0 0 var(--sp-3); }
+
+.answer strong { color: #fff; font-weight: 600; }
+
+.answer ul, .answer ol {
+  margin: 0 0 var(--sp-3);
+  padding-left: var(--sp-4);
+}
+
+.answer li { margin-bottom: var(--sp-1); }
+
+.answer h1, .answer h2, .answer h3 {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: #fff;
+  margin: var(--sp-4) 0 var(--sp-2);
+}
+
+.answer__code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 1px 4px;
+  color: var(--accent);
+}
+
+.answer__table-wrap {
+  overflow-x: auto;
+  margin: 0 0 var(--sp-3);
+}
+
+.answer__table {
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  min-width: 40%;
+}
+
+.answer__table th {
+  text-align: left;
+  color: var(--text-faint);
+  font-weight: 500;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--rule-strong);
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) 0;
+  white-space: nowrap;
+}
+
+.answer__table td {
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* Numeric columns are the ones people scan; right-align everything after the
+   first so figures line up on their last digit. */
+.answer__table td:not(:first-child),
+.answer__table th:not(:first-child) {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.answer blockquote {
+  margin: 0 0 var(--sp-3);
+  padding-left: var(--sp-3);
+  border-left: 2px solid var(--rule-strong);
+  color: var(--text-dim);
+}
+
+.turn__notice {
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid var(--error);
+  background: rgba(217, 108, 108, 0.07);
+  color: var(--error);
+  font-size: var(--fs-sm);
+}
+
+.turn__usage {
+  margin-top: var(--sp-3);
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+/* --- thinking: present but recessive ------------------------------------- */
+
+.thinking {
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+}
+
+.thinking summary {
+  cursor: pointer;
+  color: var(--text-faint);
+  user-select: none;
+}
+
+.thinking summary:hover { color: var(--text-dim); }
+
+.thinking__body {
+  white-space: pre-wrap;
+  padding: var(--sp-2) 0 0 var(--sp-3);
+  border-left: 1px solid var(--rule);
+  margin-top: var(--sp-2);
+}
+
+/* --- tool calls: the audit trail ----------------------------------------- */
+
+.tools {
+  margin: var(--sp-3) 0;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.tool {
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--fs-sm);
+}
+.tool:last-child { border-bottom: none; }
+
+.tool__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-raised);
+  border: none;
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.tool__head:hover { background: #19212a; color: var(--text); }
+
+.tool__index { color: var(--text-faint); min-width: 2ch; }
+.tool__name { color: var(--accent); }
+
+.tool__summary {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.tool__summary--error { color: var(--error); }
+
+.tool__body {
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border-top: 1px solid var(--rule);
+}
+
+.tool__field { margin-bottom: var(--sp-3); }
+.tool__field:last-child { margin-bottom: 0; }
+
+.tool__field-label {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--sp-1);
+}
+
+.tool__sql {
+  margin: 0;
+  padding: var(--sp-2);
+  background: #06080a;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.tool__note {
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--sp-1);
+  padding-left: var(--sp-3);
+  text-indent: calc(-1 * var(--sp-3));
+}
+
+.tool__note--loud { color: var(--warn); }
+
+.tool__rows {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.tool__rows th {
+  text-align: left;
+  color: var(--text-faint);
+  font-weight: 500;
+  border-bottom: 1px solid var(--rule-strong);
+  padding: var(--sp-1) var(--sp-2);
+  white-space: nowrap;
+}
+
+.tool__rows td {
+  padding: var(--sp-1) var(--sp-2);
+  border-bottom: 1px solid var(--rule);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.tool__rows td.is-number { text-align: right; }
+
+.tool__more {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  padding-top: var(--sp-2);
+}
+
+/* --- composer ------------------------------------------------------------ */
+
+.composer {
+  border-top: 1px solid var(--rule);
+  background: var(--bg-sunken);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.composer__inner {
+  max-width: 78ch;
+  margin: 0 auto;
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-end;
+}
+
+.composer textarea {
+  flex: 1;
+  resize: none;
+  background: var(--bg-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: 3px;
+  color: var(--text);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
+  font-family: var(--font-ui);
+  min-height: 38px;
+  max-height: 180px;
+}
+
+.composer textarea::placeholder { color: var(--text-faint); }
+
+.composer button {
+  background: transparent;
+  border: 1px solid var(--accent-dim);
+  color: var(--accent);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  height: 38px;
+}
+
+.composer button:hover:not(:disabled) {
+  background: var(--accent-dim);
+  color: #fff;
+}
+
+.composer button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.composer__hint {
+  max-width: 78ch;
+  margin: var(--sp-2) auto 0;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+/* --- empty state --------------------------------------------------------- */
+
+.empty { max-width: 78ch; margin: 0 auto; color: var(--text-dim); }
+
+.empty h1 {
+  font-size: var(--fs-xl);
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 var(--sp-2);
+}
+
+.empty p { margin: 0 0 var(--sp-4); }
+.empty ul { list-style: none; padding: 0; margin: 0; }
+.empty li { margin-bottom: var(--sp-2); }
+
+.empty button {
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--rule-strong);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 0 2px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  text-align: left;
+}
+
+.empty button:hover { color: var(--accent); border-color: var(--accent-dim); }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

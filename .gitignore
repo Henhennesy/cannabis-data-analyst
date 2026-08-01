@@ -37,3 +37,6 @@ reports/*.log
 data_cleaning_tool/raw_exports/
 data_cleaning_tool/raw_normalized/
 data_cleaning_tool/clean/
+
+# Vite build output
+frontend/dist/
