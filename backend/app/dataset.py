@@ -78,19 +78,30 @@ def data_fingerprint(*, force: bool = False) -> DatasetVersion:
 
     from .schema_registry import MV_CATEGORY
 
+    # Derived from the rollup ALONE, deliberately. count(*) on the 7.45M-row
+    # fact table needs a full scan -- ~0.6s warm, but well over the 8s budget on
+    # a cold page cache, and this runs before every single tool call. The rollup
+    # answers in ~0.06s.
+    #
+    # The tradeoff: a load whose materialized views were never refreshed would
+    # not change this fingerprint. That is acceptable because every tool reads
+    # from the views too, so the cache stays consistent with what is actually
+    # being served -- and test_schema_registry asserts the views reconcile to
+    # the fact table, which is what catches a forgotten REFRESH.
     res = run_query(
         f"""
-        SELECT (SELECT count(*) FROM public.{FACT})                  AS fact_rows,
-               (SELECT count(*) FROM public.{MV_CATEGORY})           AS mv_rows,
-               (SELECT sum(total_sales) FROM public.{MV_CATEGORY})   AS mv_dollars
+        SELECT count(*)          AS mv_rows,
+               sum(total_sales)  AS mv_dollars,
+               sum(total_units)  AS mv_units
+        FROM public.{MV_CATEGORY}
         """
     )
     row = res.rows[0]
     digest = hashlib.sha256(
-        f"{row['fact_rows']}|{row['mv_rows']}|{row['mv_dollars']}".encode("utf-8")
+        f"{row['mv_rows']}|{row['mv_dollars']}|{row['mv_units']}".encode("utf-8")
     ).hexdigest()[:16]
     version = DatasetVersion(
-        row_count=row["fact_rows"], source_files=(), fingerprint=digest
+        row_count=row["mv_rows"], source_files=(), fingerprint=digest
     )
 
     with _version_lock:

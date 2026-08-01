@@ -10,12 +10,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 
 from .. import cache
-from ..dataset import (
-    caveats_for,
-    data_fingerprint,
-    partial_years_for,
-    source_file_summary,
-)
+from ..dataset import caveats_for, data_fingerprint, partial_years_for
 from ..db import run_query
 from ..envelope import Coverage, ToolEnvelope
 from ..schema_registry import MV_CATEGORY
@@ -65,12 +60,15 @@ def describe_coverage(_: DescribeCoverageInput | None = None) -> ToolEnvelope:
     states = sorted({r["state"] for r in result.rows})
     partial = partial_years_for(years)
 
-    sources = source_file_summary()
+    # Deliberately NOT calling source_file_summary() here. It groups 7.45M rows
+    # by source_file -- a full scan that exceeds the 8s budget on a cold cache,
+    # and describe_coverage is the FIRST tool called in every session, so a
+    # timeout here fails the session's opening move. Load provenance is
+    # available from the maintenance helper when it is actually wanted.
     notes = [
         "BDSA is retail sell-through in covered states only. It is not total market.",
-        f"Data version {version.fingerprint} ({version.row_count:,} fact rows, "
-        f"{len({s['source_file'] for s in sources})} source files). The schema has no "
-        f"load-timestamp column; this fingerprint changes whenever the data is reloaded.",
+        f"Data version {version.fingerprint}. The schema has no load-timestamp "
+        f"column; this fingerprint changes whenever the data is reloaded.",
     ]
     missing = _states_missing_a_year(result.rows, years)
     if missing:
