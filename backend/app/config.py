@@ -37,6 +37,11 @@ class Settings:
         self.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         self.statement_timeout_ms = int(os.environ.get("STATEMENT_TIMEOUT_MS", "8000"))
         self.max_tool_calls_per_turn = int(os.environ.get("MAX_TOOL_CALLS_PER_TURN", "10"))
+        # Configurable so the cost/quality tradeoff can be re-tested without a
+        # code change. Opus 5 for correctness on a rule-dense prompt; Sonnet 5
+        # is the cheaper fallback if spend becomes the constraint.
+        self.model = os.environ.get("ANTHROPIC_MODEL", "claude-opus-5")
+        self.effort = os.environ.get("ANTHROPIC_EFFORT", "high")
         self.pool_min_size = int(os.environ.get("DB_POOL_MIN_SIZE", "1"))
         self.pool_max_size = int(os.environ.get("DB_POOL_MAX_SIZE", "5"))
 

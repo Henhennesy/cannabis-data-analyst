@@ -97,21 +97,40 @@ def run_query(
     params: dict[str, Any] | None = None,
     *,
     max_rows: int = MAX_ROWS,
+    timeout_ms: int | None = None,
 ) -> QueryResult:
     """Execute a read-only query and return rows plus the SQL for auditing.
 
     Fetches at most max_rows + 1 so truncation is detected without pulling the
     whole result into memory.
+
+    `timeout_ms` raises the statement timeout for THIS query only, restoring the
+    session default before the connection returns to the pool. It exists for
+    maintenance and data-integrity checks that must scan the whole fact table --
+    e.g. verifying `fast_acting IS NOT NULL` iff `category_l2 = 'Edibles'`,
+    which no index can serve and which exceeds 8s on a cold page cache.
+
+    No agent tool passes it. Every model-reachable query keeps the 8s budget,
+    which is the point of having one.
     """
     params = params or {}
     pool = get_pool()
+    default_timeout = get_settings().statement_timeout_ms
 
     for attempt in (1, 2):
         try:
             with pool.connection() as conn:
                 with conn.cursor(row_factory=dict_row) as cur:
-                    cur.execute(query, params)
-                    fetched = cur.fetchmany(max_rows + 1)
+                    if timeout_ms is not None:
+                        cur.execute(f"SET statement_timeout = {int(timeout_ms)}")
+                    try:
+                        cur.execute(query, params)
+                        fetched = cur.fetchmany(max_rows + 1)
+                    finally:
+                        if timeout_ms is not None:
+                            # Never hand a pooled connection back with a raised
+                            # budget -- the next borrower would silently inherit it.
+                            cur.execute(f"SET statement_timeout = {int(default_timeout)}")
                 # Render for display with a client-side cursor on the same
                 # connection, so types are quoted exactly as the server saw them.
                 with ClientCursor(conn) as ccur:

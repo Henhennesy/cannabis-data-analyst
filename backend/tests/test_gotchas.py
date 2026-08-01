@@ -85,6 +85,12 @@ def test_fast_acting_is_non_null_iff_edibles():
         WHERE (fast_acting IS NOT NULL) <> (category_l2 = %(l2)s)
         """,
         {"l2": "Edibles"},
+        # No index can serve this predicate -- it is a full scan of 7.45M rows
+        # by construction. ~2s warm, but it exceeds the 8s session budget on a
+        # cold page cache. This is a data-integrity check, not a user query, so
+        # it gets its own budget rather than being weakened into something an
+        # index can answer.
+        timeout_ms=60_000,
     )
     assert res.rows[0]["violations"] == 0
 
