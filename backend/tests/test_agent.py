@@ -33,12 +33,18 @@ def test_every_tool_has_a_well_formed_schema():
 
 def test_tool_order_is_stable():
     """Tool definitions render before the system prompt. Reordering them
-    changes the cached prefix and invalidates the prompt cache."""
+    changes the cached prefix and invalidates the prompt cache.
+
+    Discovery tools first, so the model reads "check before you filter" at the
+    top of its list; run_sql last, because it is the escape hatch.
+    """
     assert [t.name for t in registry.TOOLS] == [
         "describe_coverage",
         "list_dimension_values",
         "get_market_size",
         "get_segment_penetration",
+        "get_brand_share",
+        "run_sql",
     ]
 
 

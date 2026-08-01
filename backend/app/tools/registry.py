@@ -27,6 +27,12 @@ from .describe_coverage import (
     DescribeCoverageInput,
     describe_coverage as run_describe_coverage,
 )
+from .get_brand_share import (
+    ANTHROPIC_TOOL as GET_BRAND_SHARE_SCHEMA,
+    TOOL_NAME as GET_BRAND_SHARE,
+    GetBrandShareInput,
+    get_brand_share as run_get_brand_share,
+)
 from .get_market_size import (
     ANTHROPIC_TOOL as GET_MARKET_SIZE_SCHEMA,
     TOOL_NAME as GET_MARKET_SIZE,
@@ -44,6 +50,12 @@ from .list_dimension_values import (
     TOOL_NAME as LIST_DIMENSION_VALUES,
     ListDimensionValuesInput,
     list_dimension_values as run_list_dimension_values,
+)
+from .run_sql import (
+    ANTHROPIC_TOOL as RUN_SQL_SCHEMA,
+    TOOL_NAME as RUN_SQL,
+    RunSqlInput,
+    run_sql as run_run_sql,
 )
 
 
@@ -81,6 +93,20 @@ TOOLS: tuple[RegisteredTool, ...] = (
         schema=GET_SEGMENT_PENETRATION_SCHEMA,
         input_model=GetSegmentPenetrationInput,
         handler=run_get_segment_penetration,
+    ),
+    RegisteredTool(
+        name=GET_BRAND_SHARE,
+        schema=GET_BRAND_SHARE_SCHEMA,
+        input_model=GetBrandShareInput,
+        handler=run_get_brand_share,
+    ),
+    # Last on purpose: the escape hatch should be the model's final resort,
+    # and every invocation is logged so uncovered questions can be promoted.
+    RegisteredTool(
+        name=RUN_SQL,
+        schema=RUN_SQL_SCHEMA,
+        input_model=RunSqlInput,
+        handler=run_run_sql,
     ),
 )
 

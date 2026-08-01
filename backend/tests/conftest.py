@@ -11,6 +11,7 @@ has no write privilege at all (see scripts/verify_readonly.py).
 
 from __future__ import annotations
 
+import importlib
 import sys
 from pathlib import Path
 
@@ -57,3 +58,16 @@ def fresh_fingerprint():
     reset_fingerprint_cache()
     yield
     reset_fingerprint_cache()
+
+
+@pytest.fixture(autouse=True)
+def isolate_run_sql_log(tmp_path, monkeypatch):
+    """Keep test queries out of the real run_sql log.
+
+    That log exists to show which REAL questions the parameterised tools do not
+    cover, so they can be promoted into proper tools. Test fixtures drowning it
+    would make it useless for exactly the decision it is meant to inform.
+    """
+    run_sql_module = importlib.import_module("backend.app.tools.run_sql")
+    monkeypatch.setattr(run_sql_module, "LOG_PATH", tmp_path / "run_sql.jsonl")
+    yield

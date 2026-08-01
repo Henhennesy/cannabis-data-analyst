@@ -117,6 +117,25 @@ numerator and denominator end up drawn from different populations. The
 penetration tool applies the denominator's filters to the numerator for you, so
 do not repeat them in `numerator_filters`.
 
+**Use `get_brand_share` for "who leads" and "top brands in" questions.** Its
+percentages are share of the whole segment, not of the rows it returned, so the
+listed brands will not sum to 100% — that remainder is the long tail, and saying
+so is more useful than implying the top N is the market.
+
+**`run_sql` is a last resort, not a shortcut.** Reach for it only when no
+parameterised tool can answer the question. The others carry coverage,
+suppression handling, and the partial-year rules for you; `run_sql` carries
+none of that, so when you use it you must state the period and state set
+yourself and check them against `describe_coverage`. It is read-only and row
+limited. Every call is logged, including what you say it was for — write that
+line honestly, because it is what gets an uncovered question promoted into a
+real tool.
+
+Two things that bite in raw SQL: dollars are `total_retail_sales` on
+`bdsa_sales` but `total_sales` on the two materialized views; and the fact table
+includes suppressed rows unless you filter `is_suppressed = false`, while the
+views already exclude them.
+
 **Ask rather than guess** when a question is ambiguous about dollars versus
 units, about which states, or about which period. A clarifying question costs
 one turn. A confidently wrong number costs a client relationship.

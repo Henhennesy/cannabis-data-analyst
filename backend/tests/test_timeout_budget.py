@@ -28,17 +28,25 @@ def test_an_override_is_restored_before_the_connection_is_reused():
 
 def test_no_agent_reachable_tool_raises_the_timeout():
     """Only maintenance and integrity checks may override the budget. If a tool
-    ever needs to, that is a routing problem to fix, not a budget to raise."""
-    import backend.app.tools.describe_coverage as m1
-    import backend.app.tools.get_market_size as m2
-    import backend.app.tools.get_segment_penetration as m3
-    import backend.app.tools.list_dimension_values as m4
-    import backend.app.dataset as m5
+    ever needs to, that is a routing problem to fix, not a budget to raise.
 
-    for module in (m1, m2, m3, m4, m5):
+    run_sql matters most here: it is the one path where the model composes SQL
+    freely, so it is the one that must never be able to buy itself more time.
+    """
+    import importlib
+
+    modules = [
+        importlib.import_module(f"backend.app.tools.{t.name}")
+        for t in registry.TOOLS
+    ]
+    modules.append(importlib.import_module("backend.app.dataset"))
+
+    for module in modules:
         src = inspect.getsource(module)
         assert "timeout_ms" not in src, (
             f"{module.__name__} overrides the statement timeout; agent-reachable "
-            f"code must keep the 8s budget"
+            f"code must keep the {get_settings().statement_timeout_ms}ms budget"
         )
-    assert len(registry.TOOLS) == 4
+
+    # Every registered tool was covered by the scan above.
+    assert len(modules) == len(registry.TOOLS) + 1

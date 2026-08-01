@@ -187,7 +187,7 @@ def get_market_size(inp: GetMarketSizeInput) -> ToolEnvelope:
     ]
 
     states = _states_in_scope(inp, relation, params, where)
-    notes = _notes(inp, relation, partial, rows, states)
+    notes = _notes(inp, relation, partial, rows, states, result.truncated)
 
     envelope = ToolEnvelope(
         rows=rows,
@@ -222,7 +222,7 @@ def _states_in_scope(inp, relation, params, where) -> list[str]:
         return []
 
 
-def _notes(inp, relation, partial, rows, states) -> list[str]:
+def _notes(inp, relation, partial, rows, states, truncated: bool = False) -> list[str]:
     notes = [
         "BDSA is retail sell-through in covered states only. It is not total market.",
         f"Metric is {inp.metric}. Dollar sales and unit sales are different "
@@ -234,6 +234,17 @@ def _notes(inp, relation, partial, rows, states) -> list[str]:
         notes.append("Suppressed rows are INCLUDED; this will not match the views.")
     else:
         notes.append("Suppressed rows excluded, matching the materialized views.")
+
+    # A truncated group-by is the row cap, not the cardinality. Without this the
+    # model reports "5,000 flavors" when the real answer is "at least 5,000" --
+    # observed in testing.
+    if truncated:
+        notes.append(
+            f"TRUNCATED at {MAX_ROWS} groups. {MAX_ROWS} is the row cap, NOT the number "
+            f"of distinct values -- there are at least that many and possibly far more. "
+            f"Do not report it as a count. Rows are ordered by {inp.metric} descending, "
+            f"so the top of the list is complete and the tail is missing."
+        )
     if partial and len(states) > 1 and "state" not in inp.group_by:
         notes.append(
             f"This total spans {len(states)} states in {', '.join(str(p) for p in partial)}, "
