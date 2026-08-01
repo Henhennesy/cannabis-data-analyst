@@ -71,6 +71,46 @@ export interface Turn {
   usage?: Record<string, number>;
 }
 
+export interface SavedAnalysisSummary {
+  id: string;
+  name: string;
+  question: string;
+  created_at: string;
+  fingerprint: string;
+  call_count: number;
+  tools: string[];
+}
+
+export interface DiffField {
+  column: string;
+  before: number;
+  after: number;
+  delta: number;
+  pct_change: number | null;
+}
+
+export interface Diff {
+  added: { key: string; row: Record<string, unknown> }[];
+  removed: { key: string; row: Record<string, unknown> }[];
+  changed: { key: string; fields: DiffField[] }[];
+  unchanged_count: number;
+}
+
+export interface RerunResult {
+  analysis: SavedAnalysisSummary;
+  saved_fingerprint: string;
+  current_fingerprint: string;
+  data_changed: boolean;
+  results: {
+    tool_use_id: string;
+    tool_name: string;
+    tool_input: Record<string, unknown>;
+    before: ToolEnvelope;
+    after: ToolEnvelope;
+    diff: Diff | null;
+  }[];
+}
+
 export interface CoverageBannerData {
   period_start: number;
   period_end: number;

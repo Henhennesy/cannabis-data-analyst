@@ -1,4 +1,10 @@
-import type { CoverageBannerData, StreamEvent } from "./types";
+import type {
+  CoverageBannerData,
+  RerunResult,
+  SavedAnalysisSummary,
+  StreamEvent,
+  ToolEnvelope,
+} from "./types";
 
 /** Vite proxies /api to the backend in dev; Caddy fronts both in deployment. */
 const BASE = "/api";
@@ -69,6 +75,46 @@ export async function streamChat(
       }
     }
   }
+}
+
+// --- saved analyses --------------------------------------------------------
+
+export async function fetchAnalyses(): Promise<SavedAnalysisSummary[]> {
+  const r = await fetch(`${BASE}/analyses`);
+  if (!r.ok) throw new Error(`could not list analyses (${r.status})`);
+  return r.json();
+}
+
+export async function saveAnalysis(
+  question: string,
+  calls: {
+    tool_use_id: string;
+    tool_name: string;
+    tool_input: Record<string, unknown>;
+    envelope: ToolEnvelope;
+  }[],
+): Promise<SavedAnalysisSummary> {
+  const r = await fetch(`${BASE}/analyses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "", question, calls }),
+  });
+  if (!r.ok) {
+    const detail = await r.json().catch(() => ({}));
+    throw new Error(detail?.detail ?? `could not save (${r.status})`);
+  }
+  return r.json();
+}
+
+export async function rerunAnalysis(id: string): Promise<RerunResult> {
+  const r = await fetch(`${BASE}/analyses/${id}/rerun`, { method: "POST" });
+  if (!r.ok) throw new Error(`could not re-run (${r.status})`);
+  return r.json();
+}
+
+export async function deleteAnalysis(id: string): Promise<void> {
+  const r = await fetch(`${BASE}/analyses/${id}`, { method: "DELETE" });
+  if (!r.ok) throw new Error(`could not delete (${r.status})`);
 }
 
 /** Compact currency for prose; full precision belongs in the inspector. */

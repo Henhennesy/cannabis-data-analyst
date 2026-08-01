@@ -17,8 +17,12 @@ dist/
 .vite/
 
 # Local caches / logs produced at runtime
+# The sidecars matter too: SQLite runs in WAL mode, so the -wal and -shm files
+# hold committed rows the .sqlite file does not yet contain.
 *.sqlite
 *.sqlite3
+*.sqlite-wal
+*.sqlite-shm
 backend/cache/
 backend/logs/
 

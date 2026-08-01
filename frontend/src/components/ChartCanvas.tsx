@@ -10,6 +10,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useRef } from "react";
+import { downloadChartPng, downloadCsv } from "../lib/exports";
 import { CHROME, compactNumber, fullNumber, seriesColor } from "../lib/palette";
 import type { ChartSpec, ToolEnvelope } from "../lib/types";
 
@@ -27,6 +29,8 @@ export function ChartCanvas({
   spec: ChartSpec;
   source: ToolEnvelope | undefined;
 }) {
+  const figureRef = useRef<HTMLElement>(null);
+
   if (!source) {
     return (
       <figure className="chart chart--broken">
@@ -38,9 +42,38 @@ export function ChartCanvas({
     );
   }
 
+  const slug = spec.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 50);
+
   return (
-    <figure className="chart">
-      <figcaption className="chart__title">{spec.title}</figcaption>
+    <figure className="chart" ref={figureRef}>
+      <div className="chart__head">
+        <figcaption className="chart__title">{spec.title}</figcaption>
+        <div className="chart__actions">
+          {spec.type !== "table" && (
+            <button
+              onClick={() => {
+                const svg = figureRef.current?.querySelector("svg");
+                if (svg) {
+                  void downloadChartPng(
+                    svg as SVGSVGElement,
+                    `${slug}.png`,
+                    CHROME.surfaceHex,
+                  );
+                }
+              }}
+              title="Download this chart as a PNG"
+            >
+              png
+            </button>
+          )}
+          <button
+            onClick={() => downloadCsv(source.rows, `${slug}.csv`)}
+            title="Download the underlying rows as CSV"
+          >
+            csv
+          </button>
+        </div>
+      </div>
       {spec.type === "table" ? (
         <ChartTable spec={spec} rows={source.rows} />
       ) : (

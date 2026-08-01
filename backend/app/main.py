@@ -24,6 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from . import analyses
 from .agent import Agent, Conversation
 from .db import close_pool
 from .tools import DescribeCoverageInput, describe_coverage
@@ -35,6 +36,7 @@ log = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     yield
     close_pool()
+    analyses.close()
 
 
 app = FastAPI(
@@ -47,7 +49,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -154,6 +156,56 @@ def coverage() -> dict[str, Any]:
         "notes": env.notes,
         "rows": env.rows,
     }
+
+
+# ---------------------------------------------------------------------------
+# Saved analyses
+# ---------------------------------------------------------------------------
+
+class SaveAnalysisRequest(BaseModel):
+    name: str = ""
+    question: str = Field(min_length=1)
+    calls: list[dict[str, Any]] = Field(default_factory=list)
+
+
+@app.post("/api/analyses")
+def save_analysis(req: SaveAnalysisRequest) -> dict[str, Any]:
+    if not req.calls:
+        raise HTTPException(
+            status_code=400,
+            detail="Nothing to save: this turn made no tool calls, so there is no "
+                   "measurement to re-run.",
+        )
+    return analyses.save(req.name, req.question, req.calls).to_json()
+
+
+@app.get("/api/analyses")
+def list_analyses() -> list[dict[str, Any]]:
+    return analyses.list_all()
+
+
+@app.get("/api/analyses/{analysis_id}")
+def get_analysis(analysis_id: str) -> dict[str, Any]:
+    found = analyses.get(analysis_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail=f"No analysis {analysis_id!r}")
+    return found.to_json()
+
+
+@app.post("/api/analyses/{analysis_id}/rerun")
+def rerun_analysis(analysis_id: str) -> dict[str, Any]:
+    """Replay the saved tool calls against current data and diff the results."""
+    result = analyses.rerun(analysis_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"No analysis {analysis_id!r}")
+    return result
+
+
+@app.delete("/api/analyses/{analysis_id}")
+def delete_analysis(analysis_id: str) -> dict[str, bool]:
+    if not analyses.delete(analysis_id):
+        raise HTTPException(status_code=404, detail=f"No analysis {analysis_id!r}")
+    return {"deleted": True}
 
 
 @app.get("/api/health")

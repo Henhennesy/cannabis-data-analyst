@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 import { CoverageBanner } from "./components/CoverageBanner";
+import { Inspector } from "./components/Inspector";
+import { SavedAnalyses } from "./components/SavedAnalyses";
 import { TurnView } from "./components/TurnView";
 import { streamChat } from "./lib/api";
 import type { ChartSpec, StreamEvent, ToolCall, Turn } from "./lib/types";
@@ -15,6 +17,8 @@ export default function App() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [selectedCall, setSelectedCall] = useState<string | null>(null);
   const conversationId = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -138,8 +142,12 @@ export default function App() {
     }
   };
 
+  const lastTurn = turns.length ? turns[turns.length - 1] : null;
+  // The inspector follows the most recent turn's queries.
+  const inspectorCalls = lastTurn?.toolCalls ?? [];
+
   return (
-    <div className="app">
+    <div className={collapsed ? "app app--inspector-collapsed" : "app"}>
       <CoverageBanner />
 
       <div className="conversation" ref={scroller}>
@@ -186,6 +194,16 @@ export default function App() {
           its SQL
         </div>
       </div>
+
+      <Inspector
+        calls={inspectorCalls}
+        selectedId={selectedCall}
+        onSelect={setSelectedCall}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+      />
+
+      <SavedAnalyses currentTurn={lastTurn} />
 
       <div className="sr-only" role="status" aria-live="polite">
         {busy ? "Working" : "Ready"}
