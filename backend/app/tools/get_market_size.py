@@ -240,6 +240,24 @@ def _notes(inp, relation, partial, rows, states) -> list[str]:
             f"a partial year whose window differs by state. The states are not measured "
             f"over the same number of months, so this figure is not a clean market size."
         )
+
+    # The rows were split by year precisely BECAUSE a combined total would be
+    # meaningless. Nothing stops the model adding them back together in prose,
+    # which is how a refused figure reaches the user anyway -- observed in
+    # testing. The warning has to travel with the data, not just live in the
+    # system prompt.
+    years = _years_in(rows, inp)
+    complete_in_result = [y for y in years if y not in KNOWN_PARTIAL_YEARS]
+    partial_in_result = [y for y in years if y in KNOWN_PARTIAL_YEARS]
+    if complete_in_result and partial_in_result:
+        notes.append(
+            "DO NOT TOTAL THESE ROWS. They are split by year because "
+            f"{', '.join(str(y) for y in partial_in_result)} is a partial year and "
+            f"{', '.join(str(y) for y in complete_in_result)} is complete. Adding them "
+            "produces exactly the figure this tool refuses to return -- a full year plus "
+            "an unknown fraction of one. Report the years separately, or report only one."
+        )
+
     # An UNGROUPED aggregate over zero matching rows returns one row of NULLs,
     # not zero rows. Without this check a bad filter looks like a real answer
     # of "null" rather than "nothing matched" -- the exact failure this tool
@@ -254,3 +272,10 @@ def _notes(inp, relation, partial, rows, states) -> list[str]:
             "category_l1='Ingestibles'."
         )
     return notes
+
+
+def _years_in(rows: list[dict], inp) -> list[int]:
+    """Years present in a year-grouped result. Empty when not grouped by year."""
+    if "period_year" not in inp.group_by:
+        return []
+    return sorted({r["period_year"] for r in rows if r.get("period_year") is not None})
