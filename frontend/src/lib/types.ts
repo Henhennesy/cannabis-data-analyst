@@ -20,6 +20,25 @@ export interface ToolEnvelope {
   notes: string[];
 }
 
+/** What the model emits instead of data points. */
+export interface ChartSpec {
+  type: "bar" | "line" | "stacked_bar" | "table";
+  source_tool_call: string;
+  x: string;
+  y: string;
+  series: string | null;
+  title: string;
+  caption: string;
+}
+
+/** A figure stated in prose that no tool result this turn supports. */
+export interface UnverifiedFigure {
+  text: string;
+  value: number;
+  start: number;
+  end: number;
+}
+
 export type StreamEvent =
   | { type: "start"; conversation_id: string }
   | { type: "thinking"; text: string }
@@ -29,6 +48,7 @@ export type StreamEvent =
   | { type: "turn_end"; stop_reason?: string; usage?: Record<string, number> }
   | { type: "refusal"; text: string }
   | { type: "error"; text: string }
+  | { type: "unverified_figures"; text: string; figures: UnverifiedFigure[] }
   | { type: "done" };
 
 /** One tool invocation, paired with its result once it arrives. */
@@ -44,6 +64,8 @@ export interface Turn {
   thinking: string;
   answer: string;
   toolCalls: ToolCall[];
+  charts: ChartSpec[];
+  unverified: UnverifiedFigure[];
   status: "streaming" | "done" | "error" | "refused";
   notice?: string;
   usage?: Record<string, number>;

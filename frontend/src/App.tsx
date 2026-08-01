@@ -3,7 +3,7 @@ import "./App.css";
 import { CoverageBanner } from "./components/CoverageBanner";
 import { TurnView } from "./components/TurnView";
 import { streamChat } from "./lib/api";
-import type { StreamEvent, ToolCall, Turn } from "./lib/types";
+import type { ChartSpec, StreamEvent, ToolCall, Turn } from "./lib/types";
 
 const EXAMPLES = [
   "What was the fast-acting share of the national edibles market in 2025, in dollars?",
@@ -38,7 +38,10 @@ export default function App() {
       setDraft("");
       setTurns((prev) => [
         ...prev,
-        { question: q, thinking: "", answer: "", toolCalls: [], status: "streaming" },
+        {
+          question: q, thinking: "", answer: "", toolCalls: [],
+          charts: [], unverified: [], status: "streaming",
+        },
       ]);
 
       // Mutate only the last turn; every update is a fresh object so React sees it.
@@ -70,12 +73,28 @@ export default function App() {
             break;
           }
           case "tool_result":
-            patch((t) => ({
-              ...t,
-              toolCalls: t.toolCalls.map((c) =>
+            patch((t) => {
+              const toolCalls = t.toolCalls.map((c) =>
                 c.id === e.tool_use_id ? { ...c, envelope: e.envelope } : c,
-              ),
-            }));
+              );
+              // A successful render_chart carries the spec as its single row.
+              // The chart itself draws from the SOURCE call's rows, which the
+              // browser already has.
+              const isChart =
+                e.envelope.relation === "(chart spec)" &&
+                !e.envelope.error &&
+                e.envelope.rows.length > 0;
+              return {
+                ...t,
+                toolCalls,
+                charts: isChart
+                  ? [...t.charts, e.envelope.rows[0] as unknown as ChartSpec]
+                  : t.charts,
+              };
+            });
+            break;
+          case "unverified_figures":
+            patch((t) => ({ ...t, unverified: e.figures }));
             break;
           case "refusal":
             patch((t) => ({ ...t, status: "refused", notice: e.text }));

@@ -28,6 +28,7 @@ from typing import Any, Iterator, Literal
 
 import anthropic
 
+from . import verify_figures
 from .config import REPO_ROOT, get_settings
 from .envelope import ToolEnvelope
 from .tools import registry
@@ -41,7 +42,8 @@ SYSTEM_PROMPT_PATH = REPO_ROOT / "backend" / "app" / "prompts" / "system.md"
 MAX_TOKENS = 32_000
 
 EventType = Literal[
-    "thinking", "text", "tool_call", "tool_result", "turn_end", "error", "refusal"
+    "thinking", "text", "tool_call", "tool_result", "turn_end", "error", "refusal",
+    "unverified_figures",
 ]
 
 
@@ -55,6 +57,7 @@ class AgentEvent:
     envelope: ToolEnvelope | None = None
     stop_reason: str | None = None
     usage: dict[str, Any] | None = None
+    figures: list[dict[str, Any]] | None = None
 
 
 def load_system_prompt() -> str:
@@ -144,6 +147,30 @@ class Agent:
 
             tool_uses = [b for b in message.content if b.type == "tool_use"]
             if not tool_uses:
+                # The turn is finished, so the answer text is complete: check
+                # every figure in it against what the tools actually returned.
+                answer = "".join(
+                    b.text for b in message.content if getattr(b, "type", "") == "text"
+                )
+                report = verify_figures.verify(answer, convo.envelopes_this_turn())
+                if not report.ok:
+                    yield AgentEvent(
+                        type="unverified_figures",
+                        text=(
+                            f"{len(report.unverified)} figure(s) in this answer do not "
+                            f"appear in any tool result from this turn."
+                        ),
+                        figures=[
+                            {
+                                "text": c.text,
+                                "value": c.value,
+                                "start": c.start,
+                                "end": c.end,
+                            }
+                            for c in report.unverified
+                        ],
+                    )
+
                 yield AgentEvent(
                     type="turn_end",
                     stop_reason=message.stop_reason,
@@ -181,7 +208,17 @@ class Agent:
                     tool_input=raw_input,
                 )
 
-                envelope = registry.dispatch(block.name, raw_input)
+                # render_chart needs the results so far, to check that the call
+                # it references exists and carries the columns it names.
+                envelope = registry.dispatch(
+                    block.name,
+                    raw_input,
+                    turn_results={
+                        i: convo.tool_results[i]
+                        for i in convo.turn_tool_use_ids
+                        if i in convo.tool_results
+                    },
+                )
                 convo.tool_results[block.id] = envelope
                 convo.turn_tool_use_ids.append(block.id)
 

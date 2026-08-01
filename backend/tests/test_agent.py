@@ -44,6 +44,7 @@ def test_tool_order_is_stable():
         "get_market_size",
         "get_segment_penetration",
         "get_brand_share",
+        "render_chart",
         "run_sql",
     ]
 
@@ -184,12 +185,25 @@ def stub_settings(monkeypatch):
 
 
 def test_a_plain_answer_ends_the_turn(stub_settings):
-    client = _StubClient([_text_message("Edibles were $3.87B in 2025.")])
+    client = _StubClient([_text_message("No rows matched that filter.")])
     a = Agent(client=client)
     convo = Conversation()
     events = list(a.run_turn(convo, "How big were edibles?"))
     assert [e.type for e in events] == ["turn_end"]
     assert events[-1].stop_reason == "end_turn"
+
+
+def test_an_answer_stating_a_figure_no_tool_returned_is_flagged(stub_settings):
+    """The core guarantee: a figure with no tool behind it does not pass
+    silently. Here there are no tool calls at all, so $3.87B is unsupported."""
+    client = _StubClient([_text_message("Edibles were $3.87B in 2025.")])
+    a = Agent(client=client)
+    events = list(a.run_turn(Conversation(), "How big were edibles?"))
+
+    flagged = next(e for e in events if e.type == "unverified_figures")
+    assert [f["text"] for f in flagged.figures] == ["$3.87B"]
+    # Still ends the turn -- the flag is advisory, not a block.
+    assert events[-1].type == "turn_end"
 
 
 def test_a_tool_call_is_dispatched_and_answered(stub_settings, monkeypatch):
@@ -209,6 +223,7 @@ def test_a_tool_call_is_dispatched_and_answered(stub_settings, monkeypatch):
     a = Agent(client=client)
     convo = Conversation()
     types = [e.type for e in a.run_turn(convo, "what's loaded?")]
+    # No unverified_figures: bare years are prose context, not figures.
     assert types == ["tool_call", "tool_result", "turn_end"]
 
     # The full envelope is retained server-side, keyed by tool_use_id.

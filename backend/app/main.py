@@ -112,6 +112,8 @@ def chat(req: ChatRequest) -> StreamingResponse:
                     payload["stop_reason"] = ev.stop_reason
                 if ev.usage:
                     payload["usage"] = ev.usage
+                if ev.figures is not None:
+                    payload["figures"] = ev.figures
                 yield _sse(payload)
         except Exception as exc:  # noqa: BLE001 - must reach the client, not a 500 mid-stream
             log.exception("chat turn failed")

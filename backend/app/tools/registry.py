@@ -51,6 +51,12 @@ from .list_dimension_values import (
     ListDimensionValuesInput,
     list_dimension_values as run_list_dimension_values,
 )
+from .render_chart import (
+    ANTHROPIC_TOOL as RENDER_CHART_SCHEMA,
+    TOOL_NAME as RENDER_CHART,
+    RenderChartInput,
+    render_chart as run_render_chart,
+)
 from .run_sql import (
     ANTHROPIC_TOOL as RUN_SQL_SCHEMA,
     TOOL_NAME as RUN_SQL,
@@ -64,7 +70,10 @@ class RegisteredTool:
     name: str
     schema: dict[str, Any]
     input_model: type[BaseModel]
-    handler: Callable[[BaseModel], ToolEnvelope]
+    handler: Callable[..., ToolEnvelope]
+    # render_chart alone needs to see earlier results in the turn, to check that
+    # the tool call it references exists and has the columns it names.
+    needs_turn_results: bool = False
 
 
 # Ordered: discovery tools first, so the model sees the "check before you
@@ -100,6 +109,13 @@ TOOLS: tuple[RegisteredTool, ...] = (
         input_model=GetBrandShareInput,
         handler=run_get_brand_share,
     ),
+    RegisteredTool(
+        name=RENDER_CHART,
+        schema=RENDER_CHART_SCHEMA,
+        input_model=RenderChartInput,
+        handler=run_render_chart,
+        needs_turn_results=True,
+    ),
     # Last on purpose: the escape hatch should be the model's final resort,
     # and every invocation is logged so uncovered questions can be promoted.
     RegisteredTool(
@@ -117,7 +133,11 @@ def anthropic_tool_schemas() -> list[dict[str, Any]]:
     return [t.schema for t in TOOLS]
 
 
-def dispatch(name: str, raw_input: dict[str, Any]) -> ToolEnvelope:
+def dispatch(
+    name: str,
+    raw_input: dict[str, Any],
+    turn_results: dict[str, ToolEnvelope] | None = None,
+) -> ToolEnvelope:
     """Validate and run one tool call.
 
     Every failure path returns an envelope rather than raising. The agent loop
@@ -140,6 +160,8 @@ def dispatch(name: str, raw_input: dict[str, Any]) -> ToolEnvelope:
         )
 
     try:
+        if tool.needs_turn_results:
+            return tool.handler(parsed, turn_results or {})
         return tool.handler(parsed)
     except Exception as exc:  # noqa: BLE001 - the model needs to see this, not a 500
         return ToolEnvelope.failed(

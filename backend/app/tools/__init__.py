@@ -6,6 +6,7 @@ from .get_segment_penetration import (
     GetSegmentPenetrationInput,
 )
 from .list_dimension_values import list_dimension_values, ListDimensionValuesInput
+from .render_chart import render_chart, RenderChartInput
 from .run_sql import run_sql, RunSqlInput
 
 __all__ = [
@@ -14,5 +15,6 @@ __all__ = [
     "get_market_size", "GetMarketSizeInput",
     "get_segment_penetration", "GetSegmentPenetrationInput",
     "list_dimension_values", "ListDimensionValuesInput",
+    "render_chart", "RenderChartInput",
     "run_sql", "RunSqlInput",
 ]
