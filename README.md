@@ -234,17 +234,41 @@ One-time, in the Zero Trust dashboard.
    The built-in **one-time PIN** method needs none of this and emails a code
    instead. Identical security posture for one user; less pleasant to use often.
 
-2. **Tunnel** — Networks → Tunnels → Create → Docker. Copy the token out of the
-   command it shows you into `TUNNEL_TOKEN` in `.env`. Add a public hostname:
+2. **Tunnel** — Networks → Tunnels → Create. Tunnel type **Cloudflared**, not
+   Mesh (Mesh is WARP site-to-site networking). Name it, save, and the next
+   screen offers per-platform install commands: pick the **Docker** tab and
+   copy the long `eyJ...` token out of the command into `TUNNEL_TOKEN` in
+   `.env`. Do not run the command it shows — compose already runs cloudflared.
+
+   Then open the tunnel and add the route. As of this writing the dashboard
+   calls this **Published application routes**, not "Public Hostname":
 
    | field | value |
    | --- | --- |
    | Subdomain | `analyst` |
    | Domain | `hennesystrategy.com` |
-   | Service | `HTTP` → `web:80` |
+   | Path | *(empty)* |
+   | Type | `HTTP` |
+   | URL | `web:80` |
 
    `web:80` is the service name on the compose network, which is why
-   `cloudflared` runs in this stack rather than as a standalone service.
+   `cloudflared` runs in this stack rather than as a standalone service. Type
+   is HTTP, not HTTPS: Caddy has `auto_https off` and is not listening for TLS,
+   so HTTPS here yields a 502.
+
+   Two traps, both of which cost real time the first time through:
+
+   - **Do not confuse this with Networks → Routes → "Hostname routes".** That
+     page is private-network DNS for WARP clients. The giveaway is that it
+     never asks for a service URL, because it is not routing to an origin.
+   - **Do not hand-delete the DNS record.** Adding the route creates a proxied
+     `analyst` record automatically. Deleting it by hand severs the link, and
+     re-adding the route then does *not* recreate it -- leaving a route with no
+     DNS, which looks identical to DNS that has not propagated. If you end up
+     there, recreate it manually as a **CNAME** to
+     `<tunnel-id>.cfargotunnel.com`, **Proxied**. Proxying is mandatory:
+     `cfargotunnel.com` resolves only through Cloudflare, so a grey-cloud
+     record exists and never answers.
 
 3. **Access application** — Access → Applications → Add → Self-hosted, on
    `analyst.hennesystrategy.com`. One policy: action **Allow**, include
@@ -272,9 +296,41 @@ docker compose logs -f cloudflared         # look for "Registered tunnel connect
 ```
 
 Then open `https://analyst.hennesystrategy.com` in a private window and confirm
-you are challenged for Google *before* seeing anything, and that answers still
-stream token by token rather than arriving in one block. Streaming is the thing
-most likely to break behind a proxy — see below.
+you are challenged *before* seeing anything, and that answers still stream token
+by token rather than arriving in one block. Streaming is the thing most likely
+to break behind a proxy — see below.
+
+To prove the edge is really blocking, rather than trusting that it is, check
+both ends of the same request. From outside:
+
+```bash
+curl -sI https://analyst.hennesystrategy.com/
+```
+
+Expect `302` with a `Www-Authenticate: Cloudflare-Access` header and a
+`Location:` pointing at `<team>.cloudflareaccess.com/cdn-cgi/access/login/...`.
+Then immediately:
+
+```bash
+docker compose logs web --since 2m
+```
+
+The blocked request must **not** appear. Everything in that log should be
+`127.0.0.1` with `User-Agent: Wget` — those are the container healthchecks. An
+external client IP showing up there would mean requests are reaching the origin
+before the policy is evaluated, which is the failure worth actually testing for.
+
+> **Resolver caveat.** This workstation cannot resolve the name locally (a VPN
+> DNS quirk) and `nslookup` against 1.1.1.1 times out, because outbound port 53
+> is filtered. PowerShell reports both as "not found", which is indistinguishable
+> from a genuinely missing record and will send you chasing a DNS problem that
+> does not exist. Verify over DoH instead, which uses 443:
+>
+> ```bash
+> curl -s "https://dns.google/resolve?name=analyst.hennesystrategy.com&type=A"
+> ```
+>
+> A correct answer is two Cloudflare proxy IPs.
 
 ### Two deployment-specific hazards
 
