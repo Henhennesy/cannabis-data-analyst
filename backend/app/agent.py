@@ -249,6 +249,22 @@ class Agent:
             system=system,
             tools=tools,
             messages=convo.messages,
+            # The breakpoint on the system prompt only caches the fixed prefix.
+            # It does nothing for the conversation, which is where the cost
+            # actually is: every round trip re-sends the whole accumulated
+            # history -- each earlier tool_use and every tool_result -- at full
+            # input price. Across a 25-round strategy question that is
+            # quadratic, and it was the bulk of the bill.
+            #
+            # Top-level cache_control places a breakpoint on the last block of
+            # the request, which in this loop is always the newest tool_result.
+            # The next round then reads everything before it at roughly a tenth
+            # of input price and pays the write premium only on the delta.
+            #
+            # Auto-placement rather than annotating a block by hand because the
+            # breakpoint has to MOVE with each round; a fixed one would be
+            # overtaken by the growing history and stop matching.
+            cache_control={"type": "ephemeral"},
             # Adaptive is the default on Opus 5; "summarized" opts back into
             # visible reasoning (the default omits the text entirely).
             thinking={"type": "adaptive", "display": "summarized"},
