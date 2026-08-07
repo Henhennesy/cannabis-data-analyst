@@ -32,9 +32,15 @@ services:
       MAX_TOOL_CALLS_PER_TURN: ${MAX_TOOL_CALLS_PER_TURN:-10}
       DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
       DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
-      # Saved analyses live on the mounted volume, not inside the image, so a
-      # rebuild cannot take them with it.
+      # Everything the app writes goes to the mounted volume. The container
+      # runs as a non-root user against a code tree it does not own, so a path
+      # under /app is not writable -- and the failure is quiet, because all
+      # three of these are written on a best-effort basis that must never break
+      # a query. The run_sql log is the one that would hurt: it is the audit
+      # trail of every raw statement the model executed.
       ANALYSES_DB_PATH: /data/analyses.sqlite
+      CACHE_DB_PATH: /data/tool_cache.sqlite
+      RUN_SQL_LOG_PATH: /data/run_sql.jsonl
     volumes:
       # A bind mount rather than a named volume, on purpose: the file stays
       # visible in the repo directory, so backing it up is copying a file and
@@ -76,10 +82,27 @@ services:
     restart: unless-stopped
     depends_on:
       - web
+    # Opt-in, so the stack can be brought up and proven locally before anything
+    # is published:
+    #
+    #   docker compose up -d                      API + UI only, no tunnel
+    #   docker compose --profile tunnel up -d     ...and publish it
+    #
+    # This has to be a profile AND the token has to be a plain substitution:
+    # Compose interpolates the entire file before it filters by profile, so a
+    # `${TUNNEL_TOKEN:?...}` guard here would block `compose config` and
+    # `compose up` for every other service too, tunnel or no tunnel.
+    profiles:
+      - tunnel
+    # cloudflared reads TUNNEL_TOKEN from the environment on its own. An empty
+    # or wrong value fails immediately and legibly at startup, which is the
+    # right place for that error rather than at file-parse time.
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
     # The token encodes which tunnel this is and its credentials; the routing
     # (analyst.hennesystrategy.com -> http://web:80) lives in the Cloudflare
     # dashboard, so it can be changed without touching this file.
-    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN:?TUNNEL_TOKEN is not set - see the deployment section of the README}
+    command: tunnel --no-autoupdate run
     networks:
       - analyst
 

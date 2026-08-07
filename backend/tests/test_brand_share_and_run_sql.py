@@ -8,6 +8,7 @@ import json
 import psycopg
 import pytest
 
+from backend.app.config import get_settings
 from backend.app.db import run_query
 from backend.app.tools import (
     GetBrandShareInput,
@@ -203,7 +204,7 @@ def test_a_bad_column_returns_the_database_message_so_it_can_be_corrected():
 
 def test_every_invocation_is_logged_accepted_or_rejected(tmp_path, monkeypatch):
     log_path = tmp_path / "run_sql.jsonl"
-    monkeypatch.setattr(run_sql_module, "LOG_PATH", log_path)
+    monkeypatch.setattr(get_settings(), "run_sql_log_path", log_path)
 
     run_sql(RunSqlInput(query="SELECT 1 AS x", purpose="a good one"))
     # Begins with SELECT, so it gets past the first-word check and is caught by

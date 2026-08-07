@@ -68,6 +68,6 @@ def isolate_run_sql_log(tmp_path, monkeypatch):
     cover, so they can be promoted into proper tools. Test fixtures drowning it
     would make it useless for exactly the decision it is meant to inform.
     """
-    run_sql_module = importlib.import_module("backend.app.tools.run_sql")
-    monkeypatch.setattr(run_sql_module, "LOG_PATH", tmp_path / "run_sql.jsonl")
+    settings = importlib.import_module("backend.app.config").get_settings()
+    monkeypatch.setattr(settings, "run_sql_log_path", tmp_path / "run_sql.jsonl")
     yield

@@ -25,6 +25,10 @@ dist/
 *.sqlite-shm
 backend/cache/
 backend/logs/
+# Everything the container writes lands here via the bind mount: saved
+# analyses, the tool cache, and run_sql.jsonl -- which is an audit log of
+# real queries and must not be committed.
+backend/data/
 
 # reports/ IS tracked on purpose: the schema report is a milestone deliverable
 # and diffing it against next month's data load is how we spot schema drift.

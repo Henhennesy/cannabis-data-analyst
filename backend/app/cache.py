@@ -15,9 +15,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .config import REPO_ROOT
-
-CACHE_PATH = REPO_ROOT / "backend" / "cache" / "tool_cache.sqlite"
+from .config import get_settings
 
 _lock = threading.Lock()
 _conn: sqlite3.Connection | None = None
@@ -26,8 +24,9 @@ _conn: sqlite3.Connection | None = None
 def _connect() -> sqlite3.Connection:
     global _conn
     if _conn is None:
-        CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _conn = sqlite3.connect(CACHE_PATH, check_same_thread=False)
+        cache_path = get_settings().cache_db_path
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        _conn = sqlite3.connect(cache_path, check_same_thread=False)
         _conn.execute("PRAGMA journal_mode=WAL")
         _conn.execute(
             """

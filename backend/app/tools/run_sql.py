@@ -13,12 +13,11 @@ import logging
 import threading
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 
 import psycopg
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..config import MAX_ROWS, REPO_ROOT
+from ..config import MAX_ROWS, get_settings
 from ..db import run_query
 from ..envelope import Coverage, ToolEnvelope
 from ..sql_guard import enforce_limit, validate
@@ -26,7 +25,6 @@ from ..sql_guard import enforce_limit, validate
 log = logging.getLogger(__name__)
 
 TOOL_NAME = "run_sql"
-LOG_PATH = REPO_ROOT / "backend" / "logs" / "run_sql.jsonl"
 _log_lock = threading.Lock()
 
 ANTHROPIC_TOOL = {
@@ -72,9 +70,10 @@ class RunSqlInput(BaseModel):
 def _record(entry: dict) -> None:
     """Append one JSONL line. Never let logging break the tool."""
     try:
-        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        path = get_settings().run_sql_log_path
+        path.parent.mkdir(parents=True, exist_ok=True)
         line = json.dumps(entry, default=str)
-        with _log_lock, open(LOG_PATH, "a", encoding="utf-8") as fh:
+        with _log_lock, open(path, "a", encoding="utf-8") as fh:
             fh.write(line + "\n")
     except Exception:  # noqa: BLE001
         log.exception("could not write run_sql log")
