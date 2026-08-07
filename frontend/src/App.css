@@ -27,8 +27,7 @@
 .saved { grid-area: saved; }
 
 @media (max-width: 1180px) {
-  /* Not a responsive layout -- this is a desktop instrument. Just enough to
-     stay usable on a laptop screen. */
+  /* Laptop: drop the saved-analyses rail, keep the inspector as a column. */
   .app, .app--inspector-collapsed {
     grid-template-columns: minmax(0, 1fr) 320px;
     grid-template-areas:
@@ -39,27 +38,74 @@
   .saved { display: none; }
 }
 
-/* --- coverage banner: always on screen, per spec ------------------------- */
+/* --- phone --------------------------------------------------------------- */
+/* Below this width there is no room to give the inspector a column at all: a
+   320px pane on a 375px screen leaves the conversation about 55px, which is
+   what the layout used to do. So the conversation gets the whole width and the
+   inspector becomes an overlay, opened from the banner and closed by tapping
+   away or pressing Escape. */
+@media (max-width: 820px) {
+  .app, .app--inspector-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "banner"
+      "convo"
+      "composer";
+  }
+
+  .inspector {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(94vw, 460px);
+    z-index: 40;
+    border-left: 1px solid var(--rule);
+    box-shadow: -16px 0 40px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Closed means gone, not a narrow rail -- there is no width to spare for a
+     vertical tab, and the banner button is the way back in. */
+  .app--inspector-collapsed .inspector { display: none; }
+
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  /* Touch targets. The composer and the toggle are the two things reached by
+     thumb, and 16px on the textarea is what stops iOS zooming the viewport on
+     focus -- a smaller size makes the whole page jump when you tap it. */
+  .composer textarea { font-size: 16px; }
+  .banner__toggle { padding: var(--sp-2) var(--sp-3); }
+}
+
+/* The scrim only exists on a phone; on a wide screen the inspector is a column
+   and there is nothing to dim. */
+.scrim { display: none; }
+@media (max-width: 820px) { .scrim { display: block; } }
+
+/* --- coverage banner ------------------------------------------------------ */
+/* One line. What the data covers, and the way into the inspector. The full
+   sell-through caveat moved to the tooltip and to the chart captions, which is
+   where it still travels when a figure leaves this screen. */
 
 .banner {
   display: flex;
-  align-items: baseline;
-  gap: var(--sp-4);
+  align-items: center;
+  gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-4);
   border-bottom: 1px solid var(--rule);
   background: var(--bg-sunken);
   font-size: var(--fs-sm);
-  flex-wrap: wrap;
+  min-height: 40px;
 }
 
-.banner__label {
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: var(--fs-xs);
-}
+.banner__value { color: var(--text-dim); cursor: help; }
 
-.banner__value { color: var(--text); }
+.banner__sep { color: var(--text-faint); }
 
 .banner__partial {
   color: var(--warn);
@@ -70,6 +116,38 @@
 .banner__spacer { flex: 1; }
 
 .banner__error { color: var(--error); }
+
+.banner__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 2px var(--sp-2);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.banner__toggle:hover { color: var(--text); border-color: var(--text-faint); }
+
+.banner__badge {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  padding: 0 5px;
+}
+
+.banner__toggle-sign {
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  line-height: 1;
+}
 
 /* --- conversation -------------------------------------------------------- */
 

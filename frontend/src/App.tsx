@@ -7,6 +7,9 @@ import { TurnView } from "./components/TurnView";
 import { streamChat } from "./lib/api";
 import type { ChartSpec, StreamEvent, ToolCall, Turn } from "./lib/types";
 
+/** Kept in sync with the breakpoint in App.css by hand -- one place each. */
+const MOBILE = "(max-width: 820px)";
+
 const EXAMPLES = [
   "What was the fast-acting share of the national edibles market in 2025, in dollars?",
   "Which five states had the largest edibles market in 2025?",
@@ -17,11 +20,27 @@ export default function App() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  // Closed by default on a phone, where the inspector is a full overlay and
+  // opening it would bury the conversation before a question has been asked.
+  // On a wide screen it stays open, because there it costs a column, not
+  // the whole screen.
+  const [collapsed, setCollapsed] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(MOBILE).matches,
+  );
   const [selectedCall, setSelectedCall] = useState<string | null>(null);
   const conversationId = useRef<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
+
+  // Escape closes the inspector. It matters on a phone, where the inspector
+  // covers the conversation and the close control can scroll out of reach.
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCollapsed(true);
+    };
+    window.addEventListener("keydown", onEsc);
+    return () => window.removeEventListener("keydown", onEsc);
+  }, []);
 
   // Follow the stream, but only while the user is already near the bottom --
   // yanking the viewport away from something they are reading is worse than
@@ -148,7 +167,11 @@ export default function App() {
 
   return (
     <div className={collapsed ? "app app--inspector-collapsed" : "app"}>
-      <CoverageBanner />
+      <CoverageBanner
+        queryCount={inspectorCalls.length}
+        inspectorOpen={!collapsed}
+        onToggleInspector={() => setCollapsed((c) => !c)}
+      />
 
       <div className="conversation" ref={scroller}>
         <div className="thread">
@@ -194,6 +217,16 @@ export default function App() {
           its SQL
         </div>
       </div>
+
+      {/* Only ever visible at the mobile breakpoint, where the inspector is an
+          overlay rather than a column. Tapping it closes; so does Escape. */}
+      {!collapsed && (
+        <div
+          className="scrim"
+          onClick={() => setCollapsed(true)}
+          aria-hidden="true"
+        />
+      )}
 
       <Inspector
         calls={inspectorCalls}

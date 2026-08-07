@@ -2,11 +2,26 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchCoverage } from "../lib/api";
 
 /**
- * Always on screen, per spec. Its job is to make it impossible to forget what
- * the data actually covers -- and specifically that 2026 is partial, which is
- * the caveat most likely to produce a wrong conclusion.
+ * One line: what the data covers, and a way into the inspector.
+ *
+ * The original spelled out the sell-through caveat in full, permanently. For a
+ * single expert user that is noise -- he knows. The caveat still travels where
+ * it actually matters, which is on the chart captions, because a chart gets
+ * screenshotted into a deck without any of the surrounding text. Here it lives
+ * in the tooltip.
+ *
+ * The partial-year marker stays visible and stays coloured. That is the one
+ * caveat capable of producing a wrong conclusion rather than an incomplete one.
  */
-export function CoverageBanner() {
+export function CoverageBanner({
+  queryCount,
+  inspectorOpen,
+  onToggleInspector,
+}: {
+  queryCount: number;
+  inspectorOpen: boolean;
+  onToggleInspector: () => void;
+}) {
   const { data, error, isLoading } = useQuery({
     queryKey: ["coverage"],
     queryFn: fetchCoverage,
@@ -14,60 +29,62 @@ export function CoverageBanner() {
     retry: 1,
   });
 
-  if (isLoading) {
-    return (
-      <header className="banner">
-        <span className="banner__label">Coverage</span>
-        <span className="banner__value">checking…</span>
-      </header>
-    );
-  }
+  const toggle = (
+    <button
+      className="banner__toggle"
+      onClick={onToggleInspector}
+      aria-expanded={inspectorOpen}
+      title={
+        inspectorOpen
+          ? "Hide the query inspector"
+          : "Show the SQL behind every figure"
+      }
+    >
+      <span>queries</span>
+      {queryCount > 0 && <span className="banner__badge">{queryCount}</span>}
+      <span className="banner__toggle-sign" aria-hidden="true">
+        {inspectorOpen ? "−" : "+"}
+      </span>
+    </button>
+  );
 
-  if (error || !data) {
+  if (isLoading || error || !data) {
     return (
       <header className="banner">
-        <span className="banner__label">Coverage</span>
-        <span className="banner__error">
-          unavailable — {error instanceof Error ? error.message : "unknown error"}
+        <span className={error ? "banner__error" : "banner__value"}>
+          {/* A coverage failure is worth saying out loud -- it means the
+              backend is not answering, so nothing else will work either. */}
+          {error ? "coverage unavailable" : "checking coverage…"}
         </span>
+        <span className="banner__spacer" />
+        {toggle}
       </header>
     );
   }
 
-  const complete = [];
+  const complete: number[] = [];
   for (let y = data.period_start; y <= data.period_end; y++) {
     if (!data.partial_periods.includes(y)) complete.push(y);
   }
 
   return (
     <header className="banner">
-      <span className="banner__label">Coverage</span>
-
-      <span className="banner__value mono">
+      <span className="banner__value mono" title={data.notes.join("\n\n")}>
         {complete.join(", ")}
         {data.partial_periods.length > 0 && (
           <>
-            {complete.length > 0 && ", "}
-            <span
-              className="banner__partial"
-              title={data.caveats.join("\n\n")}
-            >
+            {complete.length > 0 && " · "}
+            <span className="banner__partial" title={data.caveats.join("\n\n")}>
               {data.partial_periods.join(", ")} partial
             </span>
           </>
         )}
-      </span>
-
-      <span className="banner__label">States</span>
-      <span className="banner__value mono" title={data.states.join(", ")}>
-        {data.state_count}
+        <span className="banner__sep"> · </span>
+        <span title={data.states.join(", ")}>{data.state_count} states</span>
       </span>
 
       <span className="banner__spacer" />
-
-      <span className="banner__label" title={data.notes.join("\n\n")}>
-        BDSA retail sell-through · covered states only · not total market
-      </span>
+      {toggle}
     </header>
   );
 }
