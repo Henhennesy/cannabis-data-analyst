@@ -36,7 +36,14 @@ class Settings:
         self.readonly_url = os.environ.get("NEON_READONLY_URL", "")
         self.anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         self.statement_timeout_ms = int(os.environ.get("STATEMENT_TIMEOUT_MS", "8000"))
-        self.max_tool_calls_per_turn = int(os.environ.get("MAX_TOOL_CALLS_PER_TURN", "10"))
+        # Counts model round-trips, not individual tools -- one round can carry
+        # several parallel tool calls. This is a runaway-loop guard, not a
+        # capability budget, and 10 was set before the tool was used for the
+        # thing it is best at. A strategy question spends two rounds orienting
+        # before it starts, and every chart costs another, so 10 truncated real
+        # work. Raise this on evidence of real questions hitting it; lower it
+        # if spend becomes the constraint.
+        self.max_tool_calls_per_turn = int(os.environ.get("MAX_TOOL_CALLS_PER_TURN", "30"))
         # Configurable so the cost/quality tradeoff can be re-tested without a
         # code change. Opus 5 for correctness on a rule-dense prompt; Sonnet 5
         # is the cheaper fallback if spend becomes the constraint.

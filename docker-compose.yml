@@ -29,7 +29,7 @@ services:
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5}
       ANTHROPIC_EFFORT: ${ANTHROPIC_EFFORT:-high}
       STATEMENT_TIMEOUT_MS: ${STATEMENT_TIMEOUT_MS:-8000}
-      MAX_TOOL_CALLS_PER_TURN: ${MAX_TOOL_CALLS_PER_TURN:-10}
+      MAX_TOOL_CALLS_PER_TURN: ${MAX_TOOL_CALLS_PER_TURN:-30}
       DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
       DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
       # Everything the app writes goes to the mounted volume. The container
